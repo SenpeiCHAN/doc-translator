@@ -20,6 +20,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "rich>=13.0.0",
     "lxml>=5.3.0",
+    "gradio>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +28,7 @@ paddle = ["paddleocr>=2.8.0", "paddlepaddle>=3.0.0"]
 
 [project.scripts]
 doc-translator = "doc_translator.cli:main"
+doc-translator-web = "doc_translator.webui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

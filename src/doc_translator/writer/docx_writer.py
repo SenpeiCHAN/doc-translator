@@ -8,14 +8,8 @@ from docx import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
-from doc_translator.document import Document
+from doc_translator.document import ContentElement, Document
 from doc_translator.writer.base import BaseWriter
-
-# 支持中文的系统字体列表
-CN_FONTS = {
-    "pingfang sc", "microsoft yahei", "simsun",
-    "noto sans cjk", "source han sans", "heiti sc",
-}
 
 ALIGN_MAP = {
     "left": WD_ALIGN_PARAGRAPH.LEFT,
@@ -31,83 +25,95 @@ class DocxWriter(BaseWriter):
         out = DocxDocument()
 
         for page in document.pages:
-            self._write_page(out, page)
+            for elem in page.elements:
+                if elem.type == "paragraph":
+                    self._write_paragraph(out, elem)
+                elif elem.type == "table":
+                    self._write_table(out, elem)
+                elif elem.type == "image" and elem.image_data:
+                    try:
+                        out.add_picture(BytesIO(elem.image_data))
+                    except Exception:
+                        pass
 
         self._write_vocabulary(out, document)
-
         out.save(output_path)
 
-    def _write_page(self, out: DocxDocument, page) -> None:
-        for elem in page.elements:
-            if elem.type == "paragraph":
-                self._write_paragraph(out, elem)
-            elif elem.type == "table":
-                self._write_table(out, elem)
-            elif elem.type == "image" and elem.image_data:
-                try:
-                    stream = BytesIO(elem.image_data)
-                    out.add_picture(stream)
-                except Exception:
-                    pass
-
-    def _write_paragraph(self, out: DocxDocument, elem) -> None:
+    def _write_paragraph(self, out: DocxDocument, elem: ContentElement) -> None:
         para = out.add_paragraph()
         meta = elem.meta or {}
 
-        # 对齐方式
         align_str = meta.get("alignment")
         if align_str and align_str in ALIGN_MAP:
             para.alignment = ALIGN_MAP[align_str]
 
-        text = elem.translated_text or elem.text
         runs_meta = meta.get("runs", [])
+        translated = elem.translated_text
+        orig_text = elem.text
+        text_for_runs = translated if translated else orig_text
 
         if runs_meta:
-            # 逐 run 重建
-            for i, run_meta in enumerate(runs_meta):
-                if run_meta.get("is_image"):
-                    continue
-                run = para.add_run(run_meta.get("text", ""))
-                if i == 0 and elem.translated_text:
-                    run.text = elem.translated_text
-                self._apply_font(run, run_meta.get("font", {}))
+            self._write_runs_distributed(para, runs_meta, text_for_runs)
         else:
-            run = para.add_run(text)
-            self._apply_font(run, {})
+            run = para.add_run(text_for_runs)
+            run.font.name = "PingFang SC"
+
+    def _write_runs_distributed(
+        self, para, runs_meta: list[dict], full_text: str,
+    ) -> None:
+        text_runs = [r for r in runs_meta if not r.get("is_image")]
+        if not text_runs:
+            run = para.add_run(full_text)
+            run.font.name = "PingFang SC"
+            return
+
+        # Distribute translated text proportionally across non-image runs
+        total_len = sum(len(r.get("text", "")) for r in text_runs) or 1
+        start = 0
+        for i, r in enumerate(text_runs):
+            orig_len = len(r.get("text", ""))
+            is_last = (i == len(text_runs) - 1)
+            if is_last:
+                chunk = full_text[start:]
+            else:
+                prop = orig_len / total_len
+                chunk_len = max(1, round(len(full_text) * prop))
+                chunk = full_text[start:start + chunk_len]
+                start += chunk_len
+
+            run = para.add_run(chunk)
+            self._apply_font(run, r.get("font", {}))
 
     def _apply_font(self, run, font_meta: dict) -> None:
         name = font_meta.get("name")
-        if name:
-            run.font.name = name
-        else:
-            run.font.name = "PingFang SC"
+        run.font.name = name if name else "PingFang SC"
 
         size = font_meta.get("size")
         if size:
             run.font.size = Pt(int(size) / 2)
 
         bold = font_meta.get("bold")
-        if bold is not None:
-            run.font.bold = bold
+        if bold:
+            run.font.bold = True
 
         italic = font_meta.get("italic")
-        if italic is not None:
-            run.font.italic = italic
+        if italic:
+            run.font.italic = True
 
         color = font_meta.get("color")
         if color:
-            from docx.shared import RGBColor
             try:
+                from docx.shared import RGBColor
                 run.font.color.rgb = RGBColor.from_string(color)
             except Exception:
                 pass
 
-    def _write_table(self, out: DocxDocument, elem) -> None:
+    def _write_table(self, out: DocxDocument, elem: ContentElement) -> None:
         rows = elem.table_rows
         if not rows:
             return
 
-        num_cols = max(len(r) for r in rows) if rows else 1
+        num_cols = max(len(r) for r in rows)
         table = out.add_table(rows=len(rows), cols=num_cols)
         table.style = "Table Grid"
 
@@ -116,13 +122,13 @@ class DocxWriter(BaseWriter):
                 if j < num_cols:
                     table.cell(i, j).text = cell_text
 
-    def _write_vocabulary(self, out: DocxDocument, document) -> None:
+    def _write_vocabulary(self, out: DocxDocument, document: Document) -> None:
         vocab = document.metadata.get("vocabulary")
         if not vocab:
             return
 
         out.add_page_break()
-        heading = out.add_heading("术语表 / Vocabulary", level=1)
+        out.add_heading("术语表 / Vocabulary", level=1)
 
         table = out.add_table(rows=1, cols=3)
         table.style = "Table Grid"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from doc_translator.document import Document
+from doc_translator.document import ContentElement, Document
 from doc_translator.writer.base import BaseWriter
 
 
@@ -17,6 +17,7 @@ class MarkdownWriter(BaseWriter):
         img_dir.mkdir(parents=True, exist_ok=True)
 
         lines: list[str] = []
+        img_counter = 0
 
         for page in document.pages:
             for elem in page.elements:
@@ -30,17 +31,12 @@ class MarkdownWriter(BaseWriter):
                     self._write_md_table(lines, elem)
 
                 elif elem.type == "image" and elem.image_data:
-                    img_path = self._save_image(
-                        elem, img_dir, page.page_number
-                    )
+                    img_counter += 1
+                    img_path = self._save_image(elem, img_dir, img_counter)
                     if img_path:
-                        rel_path = f"images/{img_path.name}"
-                        lines.append(
-                            f"![图片]({rel_path})"
-                        )
+                        lines.append(f"![图片](images/{img_path.name})")
                         lines.append("")
 
-        # 词汇表
         vocab = document.metadata.get("vocabulary")
         if vocab:
             lines.append("## 术语表 / Vocabulary")
@@ -56,13 +52,13 @@ class MarkdownWriter(BaseWriter):
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
 
-    def _write_md_table(self, lines: list[str], elem) -> None:
+    def _write_md_table(self, lines: list[str], elem: ContentElement) -> None:
         rows = elem.table_rows
         if not rows:
             return
 
         max_cols = max(len(r) for r in rows)
-        header = rows[0]
+        header = rows[0].copy()
         while len(header) < max_cols:
             header.append("")
 
@@ -70,16 +66,17 @@ class MarkdownWriter(BaseWriter):
         lines.append("| " + " | ".join(["---"] * max_cols) + " |")
 
         for row in rows[1:]:
-            while len(row) < max_cols:
-                row.append("")
-            lines.append("| " + " | ".join(row) + " |")
+            r = row.copy()
+            while len(r) < max_cols:
+                r.append("")
+            lines.append("| " + " | ".join(r) + " |")
         lines.append("")
 
     def _save_image(
-        self, elem, img_dir: Path, page_num: int
+        self, elem: ContentElement, img_dir: Path, counter: int,
     ) -> Path | None:
         ext = elem.image_ext or "png"
-        img_path = img_dir / f"page{page_num}_{id(elem)}.{ext}"
+        img_path = img_dir / f"img_{counter}.{ext}"
         try:
             img_path.write_bytes(elem.image_data)
             return img_path

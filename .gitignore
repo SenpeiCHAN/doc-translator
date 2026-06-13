@@ -39,3 +39,7 @@ test_output/
 
 # Test fixtures output
 *.tmp
+
+# Gradio
+*.pkl
+__pycache__/gradio/
