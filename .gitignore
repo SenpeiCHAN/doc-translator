@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.whl
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Output
+translated/
+demo_output/
+test_output/
+
+# Progress / checkpoints
+.progress/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test fixtures output
+*.tmp

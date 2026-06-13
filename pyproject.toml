@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "doc-translator"
+version = "0.1.0"
+description = "Mac 文档翻译器：将 Word/PDF 逐页翻译为中文，调用 DeepSeek API"
+requires-python = ">=3.11"
+dependencies = [
+    "python-docx>=1.1.2",
+    "PyMuPDF>=1.25.0",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.13",
+    "Pillow>=11.0.0",
+    "openai>=1.60.0",
+    "tiktoken>=0.8.0",
+    "tenacity>=9.0.0",
+    "pydantic>=2.10.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.0.0",
+    "lxml>=5.3.0",
+]
+
+[project.optional-dependencies]
+paddle = ["paddleocr>=2.8.0", "paddlepaddle>=3.0.0"]
+
+[project.scripts]
+doc-translator = "doc_translator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
