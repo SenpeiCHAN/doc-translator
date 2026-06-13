@@ -116,4 +116,7 @@ class PdfReader(BaseReader):
                     "Tesseract 未安装或缺少 chi_sim 语言包，"
                     "请执行: brew install tesseract tesseract-lang"
                 )
+                # 回退到 PyMuPDF 简单提取，避免崩溃
+                text = page.get_text()
+                return text.strip() if text else ""
             return ocr_image_tesseract(img)
